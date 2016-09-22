@@ -1,0 +1,45 @@
+#!/bin/bash -eu
+
+APP="$(basename $0)"
+APP_ARGS="$*"
+APP_ROOT="$(dirname $0)"
+GRADLEW="$APP_ROOT/gradlew"
+CLASSPATH_DIR="${APP_ROOT}/classpath"
+MAIN_CLASS="org.jruby.Main"
+export GEM_HOME="${APP_ROOT}/vendor/jruby-complete"
+export PATH="${GEM_HOME}/bin:$PATH"
+
+# for clarifying env
+# ex) JAVA_PROPERTY="-Djruby.debug.scriptResolution=true"
+JAVA_PROPERTY="${JAVA_PROPERTY:-}"
+
+__jruby_jar() {
+  if test -d $CLASSPATH_DIR; then
+    find $CLASSPATH_DIR \
+      -name "jruby-complete-*.jar" \
+      -type f | \
+      tail -n1
+  fi
+}
+
+__classpath() {
+  echo $CLASSPATH_DIR/* | \
+    sed 's/ /:/g'
+}
+
+if ! test -f "$(__jruby_jar)"; then
+  $GRADLEW classpath
+fi
+
+if ! test -x "$GEM_HOME/bin/bundle"; then
+  java -cp $(__classpath) $MAIN_CLASS -S jgem install bundler
+  if ! test -x "$GEM_HOME/bin/bundle"; then
+    echo "[$(date)] ERROR -- java -cp $(__classpath) $MAIN_CLASS -S jgem install bundler"
+    exit 1
+  fi
+fi
+
+(
+  cd $APP_ROOT
+  exec java $JAVA_PROPERTY -cp $(__classpath) $MAIN_CLASS -S bundle $*
+)
